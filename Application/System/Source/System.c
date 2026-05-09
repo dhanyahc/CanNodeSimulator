@@ -10,6 +10,9 @@
 
 volatile UINT32 systemClockFreq = 0;
 
+volatile UINT8  doorStatus_global = 0;
+
+
 t_Status System_Init(void)
 {
     t_Status status = STS_OK;
@@ -61,10 +64,14 @@ t_Status System_Run(void)
     static uint32_t lastTick = 0;
     uint8_t temperature = 0;
     uint8_t humidity = 0;
+    uint8_t Frame[8];
+    float   temperature_float = 0;
+    float   humidity_float = 0;
+    uint8_t doorStatus = 0;
 
     while (1)
     {
-        if(HAL_GetTick() - lastTick >= 1000)
+        if(HAL_GetTick() - lastTick >= 10000)
         {
         	lastTick = HAL_GetTick();
 
@@ -74,9 +81,48 @@ t_Status System_Run(void)
 
         	__enable_irq();
 
+#if 0
+        	temperature_float = (float)temperature;
+        	humidity_float = (float)humidity;
+#else
+        	temperature_float = (float)34;
+        	humidity_float = (float)50;
+#endif
+
+
+        	memset(Frame, 0x00, sizeof(Frame));
+
+        	Frame[0] = 0x01;
+        	Frame[1] = 'T';
+        	memcpy(&Frame[2], &temperature_float, sizeof(temperature_float));
+
         	//if(status == STS_OK)
         	{
-        		CAN_Send(temperature, humidity);
+        		CAN_Send(sizeof(Frame), Frame);
+        	}
+
+        	memset(Frame, 0x00, sizeof(Frame));
+
+        	Frame[0] = 0x01;
+        	Frame[1] = 'H';
+        	memcpy(&Frame[2], &humidity_float, sizeof(humidity_float));
+
+        	//if(status == STS_OK)
+        	{
+        		CAN_Send(sizeof(Frame), Frame);
+        	}
+
+        	memset(Frame, 0x00, sizeof(Frame));
+
+        	doorStatus = (uint8_t)doorStatus_global;
+
+        	Frame[0] = 0x01;
+        	Frame[1] = 'D';
+        	memcpy(&Frame[2], &doorStatus, sizeof(doorStatus));
+
+        	//if(status == STS_OK)
+        	{
+        		CAN_Send(sizeof(Frame), Frame);
         	}
         }
     }

@@ -57,21 +57,20 @@ t_Status CAN_Interface_Init(void)
 }
 
 
-t_Status CAN_Send(uint8_t temp, uint8_t hum)
+t_Status CAN_Send(uint8_t DataLen, uint8_t *pData)
 {
     CAN_TxHeaderTypeDef txHeader;
-    uint8_t data[8] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
     uint32_t mailbox;
 
     txHeader.StdId = 0x100;
     txHeader.IDE = CAN_ID_STD;
     txHeader.RTR = CAN_RTR_DATA;
-    txHeader.DLC = 8;
+    txHeader.DLC = DataLen;
 
     // Check if mailbox is available
     if(HAL_CAN_GetTxMailboxesFreeLevel(&hcan) > 0)
     {
-        if(HAL_CAN_AddTxMessage(&hcan, &txHeader, data, &mailbox) == HAL_OK)
+        if(HAL_CAN_AddTxMessage(&hcan, &txHeader, pData, &mailbox) == HAL_OK)
         {
             return STS_OK;
         }
