@@ -27,8 +27,11 @@ static void DHT_SetOutput(void)
 {
     GPIO_InitTypeDef GPIO_InitStruct = {0};
 
-    GPIO_InitStruct.Pin = DHT_PIN;
-    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pin   = DHT_PIN;
+    GPIO_InitStruct.Mode  = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull  = GPIO_NOPULL;        // No pull in output mode
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+
     HAL_GPIO_Init(DHT_PORT, &GPIO_InitStruct);
 }
 
@@ -36,8 +39,11 @@ static void DHT_SetInput(void)
 {
     GPIO_InitTypeDef GPIO_InitStruct = {0};
 
-    GPIO_InitStruct.Pin = DHT_PIN;
+    GPIO_InitStruct.Pin  = DHT_PIN;
     GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;         // 🔥 Enable internal pull-up
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+
     HAL_GPIO_Init(DHT_PORT, &GPIO_InitStruct);
 }
 
@@ -54,41 +60,41 @@ t_Status DHT_Initialize(void)
 t_Status DHT_Read(UINT8 *temp, UINT8 *hum)
 {
     uint8_t data[5] = {0};
-    uint32_t tickstart;
     uint16_t timeout_us;
 
     // Step 1: Start signal
     DHT_SetOutput();
     HAL_GPIO_WritePin(DHT_PORT, DHT_PIN, GPIO_PIN_RESET);
-    HAL_Delay(18);
+    delay_us(18000);   // 18 ms (FIXED: was 18 us ❌)
 
     HAL_GPIO_WritePin(DHT_PORT, DHT_PIN, GPIO_PIN_SET);
-    delay_us(30);
+    delay_us(50);
 
     DHT_SetInput();
+    delay_us(10); // allow line to settle
 
-    // Step 2: Sensor response (LOW)
-    tickstart = HAL_GetTick();
+    // Step 2: Wait for sensor response LOW (~80us)
+    timeout_us = 0;
     while (HAL_GPIO_ReadPin(DHT_PORT, DHT_PIN))
     {
-        if ((HAL_GetTick() - tickstart) > DHT_TIMEOUT_MS)
-            return STS_ERROR;
+        delay_us(1);
+        if (++timeout_us > 200) return STS_ERROR;
     }
 
-    // Step 3: Sensor pulls HIGH
-    tickstart = HAL_GetTick();
+    // Step 3: Wait for sensor HIGH (~80us)
+    timeout_us = 0;
     while (!HAL_GPIO_ReadPin(DHT_PORT, DHT_PIN))
     {
-        if ((HAL_GetTick() - tickstart) > DHT_TIMEOUT_MS)
-            return STS_ERROR;
+        delay_us(1);
+        if (++timeout_us > 100) return STS_ERROR;
     }
 
-    // Step 4: Sensor pulls LOW again
-    tickstart = HAL_GetTick();
+    // Step 4: Wait for sensor LOW (start of data)
+    timeout_us = 0;
     while (HAL_GPIO_ReadPin(DHT_PORT, DHT_PIN))
     {
-        if ((HAL_GetTick() - tickstart) > DHT_TIMEOUT_MS)
-            return STS_ERROR;
+        delay_us(1);
+        if (++timeout_us > 100) return STS_ERROR;
     }
 
     // Step 5: Read 40 bits
@@ -119,7 +125,11 @@ t_Status DHT_Read(UINT8 *temp, UINT8 *hum)
         }
     }
 
-    // Step 6: Assign values
+    // Step 6: Checksum validation (ADDED)
+    if ((uint8_t)(data[0] + data[1] + data[2] + data[3]) != data[4])
+        return STS_ERROR;
+
+    // Step 7: Assign values
     *hum  = data[0];
     *temp = data[2];
 

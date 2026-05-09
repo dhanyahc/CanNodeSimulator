@@ -74,7 +74,7 @@ t_Status System_Run(void)
 
         	__enable_irq();
 
-        	if(status == STS_OK)
+        	//if(status == STS_OK)
         	{
         		CAN_Send(temperature, humidity);
         	}
